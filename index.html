@@ -1,85 +1,323 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Next B3A</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F7F9FC">
+<meta name="description" content="城巴 B3A 富泰邨往深圳灣口岸及深圳灣口岸往屯門的即時到站預測，每 30 秒更新。">
+<title>Next B3A · 嶺南往返深圳灣</title>
 <style>
-  body { font-family: system-ui, "Segoe UI", "Microsoft JhengHei", sans-serif; margin: 0;
-         background: #f4f6f8; color: #1f2933; }
-  header { background: #c00000; color: #fff; padding: 16px 24px; }
-  header h1 { margin: 0; font-size: 28px; }
-  header p { margin: 4px 0 0; opacity: .9; }
-  main { display: flex; flex-wrap: wrap; gap: 20px; padding: 24px; }
-  section { flex: 1 1 320px; background: #fff; border-radius: 12px; padding: 18px 22px;
-            box-shadow: 0 1px 4px rgba(0,0,0,.12); }
-  h2 { margin: 0 0 4px; font-size: 20px; color: #1f4e79; }
-  .stop { color: #6b7280; margin: 0 0 14px; }
-  .bus { display: flex; justify-content: space-between; align-items: baseline;
-         border-top: 1px solid #e5e7eb; padding: 10px 0; }
-  .min { font-size: 34px; font-weight: 700; color: #c00000; }
-  .clock { color: #6b7280; }
-  .none { color: #6b7280; padding: 10px 0; }
-  footer { padding: 0 24px 24px; color: #6b7280; font-size: 14px; }
+  :root {
+    color-scheme: light;
+    --ink: #142b45; --muted: #5b6677; --ground: #f7f9fc; --surface: #fff;
+    --line: #dce3eb; --route: #f6d14b; --good: #216747; --warning: #855000; --error: #a22635;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink);
+    font-family: "Segoe UI Variable", "Aptos", "Microsoft JhengHei", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; line-height: 1.5; }
+  button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  button { font: inherit; }
+  a { color: inherit; text-underline-offset: 4px; }
+  a:hover { color: #224f88; }
+  :focus-visible { outline: 3px solid #3268b1; outline-offset: 4px; }
+  h1, h2, p { margin: 0; }
+  h1, h2 { text-wrap: balance; }
+  p { text-wrap: pretty; }
+  .number, time { font-variant-numeric: tabular-nums; }
+  .skip { position: absolute; left: 16px; top: -100px; z-index: 2; padding: 12px 18px; background: var(--route); border-radius: 6px; }
+  .skip:focus { top: 12px; }
+  .page { max-width: 1120px; margin: 0 auto;
+    padding: max(42px, env(safe-area-inset-top)) max(28px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(28px, env(safe-area-inset-left)); }
+  .masthead { display: flex; align-items: center; gap: 24px; padding-bottom: 30px; }
+  .route-sign { flex: 0 0 auto; display: grid; place-items: center; width: 114px; height: 91px;
+    border-radius: 9px; background: var(--route); color: var(--ink);
+    font-size: 43px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
+  .heading { min-width: 0; }
+  h1 { font-size: clamp(24px, 3.3vw, 34px); font-weight: 750; letter-spacing: -.7px; line-height: 1.3; }
+  .subtitle { color: var(--muted); margin-top: 7px; font-size: 15px; }
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--line); padding: 17px 0; }
+  .data-status { color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+  .data-status[data-kind="ready"] { color: var(--good); }
+  .data-status[data-kind="warning"] { color: var(--warning); }
+  .refresh { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 44px; min-width: 108px; padding: 10px 15px; border: 1px solid #a9b7c7; border-radius: 7px;
+    background: var(--surface); color: var(--ink); cursor: pointer; font-weight: 650; font-size: 14px;
+    transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease; }
+  .refresh:hover { background: #edf2f8; border-color: var(--ink); }
+  .refresh:active { transform: scale(.96); }
+  .refresh:disabled { color: var(--muted); cursor: wait; background: #edf2f8; }
+  .refresh svg { width: 17px; height: 17px; flex: 0 0 auto; }
+  .boards { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 22px; scroll-margin-top: 20px; }
+  .board { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: clip; }
+  .board-heading { padding: 24px 26px 20px; }
+  .direction { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  h2 { font-size: 23px; font-weight: 750; letter-spacing: -.4px; line-height: 1.35; }
+  .direction-mark { font-size: 26px; line-height: 1.2; color: var(--muted); }
+  .english { display: block; color: var(--muted); font-size: 13px; font-weight: 400; margin-top: 5px; letter-spacing: 0; }
+  .boarding { margin-top: 17px; color: var(--muted); font-size: 14px; }
+  .boarding strong { color: var(--ink); font-weight: 600; }
+  .arrivals { flex: 1; min-height: 228px; padding: 0 26px; }
+  .next-bus { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px; padding: 19px 0 23px; border-top: 1px solid var(--line); }
+  .next-label { color: var(--muted); font-size: 13px; margin-bottom: 5px; }
+  .wait { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+  .wait .number { font-size: 64px; line-height: 1; font-weight: 750; letter-spacing: -2px; }
+  .wait .unit { color: var(--muted); font-size: 16px; }
+  .wait .arriving { font-size: 29px; font-weight: 750; letter-spacing: -.6px; line-height: 1.3; white-space: normal; }
+  .eta { text-align: right; flex: 0 0 auto; margin-left: auto; padding-bottom: 3px; }
+  .eta time { font-size: 24px; font-weight: 600; letter-spacing: -.5px; }
+  .eta small { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .later-list { list-style: none; margin: 0; padding: 0 0 12px; }
+  .later-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 13px 0; border-top: 1px solid var(--line); }
+  .later-label { color: var(--muted); font-size: 14px; }
+  .later-value { font-size: 18px; font-weight: 600; }
+  .later-clock { color: var(--muted); font-size: 14px; }
+  .remark { color: var(--muted); font-size: 12px; margin: -10px 0 16px; overflow-wrap: anywhere; }
+  .empty { padding: 30px 0; border-top: 1px solid var(--line); }
+  .empty strong { display: block; font-size: 21px; font-weight: 600; margin-bottom: 7px; }
+  .empty p { color: var(--muted); font-size: 14px; max-width: 29em; }
+  .board-foot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 5px 14px;
+    padding: 12px 26px; border-top: 1px solid var(--line); background: #f9fbfd; font-size: 12px; color: var(--muted); }
+  .board[data-state="stale"] .board-state, .board[data-state="error"] .board-state { color: var(--warning); font-weight: 600; }
+  .board[data-state="error"] .empty strong { color: var(--error); }
+  .board[data-state="stale"] .next-label { color: var(--warning); }
+  .footnotes { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 28px; margin-top: 24px; color: var(--muted); font-size: 12px; }
+  .footnotes p { max-width: 58ch; }
+  .footnotes a { min-height: 44px; display: inline-flex; align-items: center; padding: 6px 0; }
+  .fine-print { display: block; margin-top: 5px; }
+  noscript p { margin-top: 18px; padding: 16px; background: #fff1c7; }
+  @media (max-width: 700px) {
+    .page { padding: max(24px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); }
+    .masthead { gap: 16px; padding-bottom: 23px; }
+    .route-sign { width: 82px; height: 72px; font-size: 33px; border-radius: 7px; }
+    .subtitle { font-size: 12px; margin-top: 5px; }
+    .toolbar { gap: 10px; padding: 12px 0 17px; }
+    .data-status { font-size: 12px; }
+    .refresh { min-width: 97px; padding: 9px 11px; }
+    .boards { grid-template-columns: minmax(0,1fr); gap: 18px; }
+    .board-heading { padding: 21px 22px 17px; }
+    h2 { font-size: 21px; }
+    .boarding { margin-top: 12px; }
+    .arrivals { padding: 0 22px; min-height: 0; }
+    .next-bus { padding: 16px 0 21px; }
+    .wait .number { font-size: 56px; }
+    .eta time { font-size: 22px; }
+    .board-foot { padding: 12px 22px; }
+    .footnotes { margin-top: 21px; gap: 9px; }
+  }
+  @media (max-width: 360px) {
+    .page { padding-inline: 14px; }
+    .masthead { gap: 12px; }
+    .route-sign { width: 68px; height: 64px; font-size: 29px; }
+    h1 { font-size: 23px; }
+    .board-heading, .arrivals { padding-inline: 18px; }
+    .board-foot { padding-inline: 18px; }
+    .wait .number { font-size: 49px; }
+    .wait .arriving { font-size: 25px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .refresh { transition: none; } .refresh:active { transform: none; } }
 </style>
 </head>
 <body>
-<header>
-  <h1>Next B3A</h1>
-  <p>Citybus · Lingnan ⇄ Shenzhen Bay Port · 城巴 B3A</p>
-</header>
-<main>
-  <section>
-    <h2>To Shenzhen Bay Port · 往深圳灣口岸</h2>
-    <p class="stop">From Fu Tai Estate, Castle Peak Road · 富泰邨</p>
-    <div id="out">Loading…</div>
-  </section>
-  <section>
-    <h2>To Tuen Mun · 往屯門山景邨</h2>
-    <p class="stop">From Shenzhen Bay Port · 深圳灣口岸</p>
-    <div id="in">Loading…</div>
-  </section>
-</main>
-<footer>Data: Citybus real-time ETA, DATA.GOV.HK · updated <span id="updated">–</span> · refreshes every 30 s</footer>
+<a class="skip" href="#boards">跳到到站時間</a>
+<div class="page">
+  <header class="masthead">
+    <div class="route-sign" translate="no" aria-hidden="true">B3A</div>
+    <div class="heading">
+      <h1>下一班 <span translate="no">B3A</span></h1>
+      <p class="subtitle">嶺南附近 ⇄ 深圳灣口岸<br><span lang="en">Lingnan ↔ Shenzhen Bay Port</span></p>
+    </div>
+  </header>
+  <div class="toolbar">
+    <p class="data-status" id="data-status" data-kind="loading">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span id="status-text" role="status" aria-live="polite">正在取得城巴資料…</span>
+    </p>
+    <button class="refresh" id="refresh" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.1a8 8 0 0 1 13.4 3.2M4.5 14.7a8 8 0 0 0 13.4 3.2"/></svg>
+      <span id="refresh-label">立即更新</span>
+    </button>
+  </div>
+  <main class="boards" id="boards">
+    <section class="board" id="out-board" aria-labelledby="out-title" data-state="loading">
+      <div class="board-heading">
+        <div class="direction">
+          <h2 id="out-title">往深圳灣口岸<span class="english" lang="en">To Shenzhen Bay Port</span></h2>
+          <span class="direction-mark" aria-hidden="true">↗</span>
+        </div>
+        <p class="boarding">上車站 <strong>富泰邨（青山公路）</strong></p>
+      </div>
+      <div class="arrivals" id="out"><div class="empty"><strong>正在查詢…</strong><p>即將顯示下一班巴士的到站預測。</p></div></div>
+      <div class="board-foot"><span class="board-state" id="out-state">正在連接</span><span id="out-updated">尚未取得資料</span></div>
+    </section>
+    <section class="board" id="in-board" aria-labelledby="in-title" data-state="loading">
+      <div class="board-heading">
+        <div class="direction">
+          <h2 id="in-title">往屯門山景邨<span class="english" lang="en">To Tuen Mun, Shan King Estate</span></h2>
+          <span class="direction-mark" aria-hidden="true">↙</span>
+        </div>
+        <p class="boarding">上車站 <strong>深圳灣口岸</strong></p>
+      </div>
+      <div class="arrivals" id="in"><div class="empty"><strong>正在查詢…</strong><p>即將顯示下一班巴士的到站預測。</p></div></div>
+      <div class="board-foot"><span class="board-state" id="in-state">正在連接</span><span id="in-updated">尚未取得資料</span></div>
+    </section>
+  </main>
+  <noscript><p>請啟用 JavaScript，以讀取城巴即時到站資料。</p></noscript>
+  <footer class="footnotes">
+    <p>每 30 秒自動更新。所有時刻均為香港時間。<span class="fine-print">到站時間為預測，實際班次請以城巴公布為準。</span></p>
+    <p><a href="https://data.gov.hk/tc-data/dataset/ctb-eta-transport-realtime-eta" target="_blank" rel="noopener noreferrer">資料來源：城巴開放數據</a><span class="fine-print">CDT501 課堂作品</span></p>
+  </footer>
+</div>
 <script>
-  // Stop IDs come from /route-stop/CTB/B3A/outbound and /stop/{id}:
-  // 003261 = Fu Tai Estate (outbound, last stop before the port)
-  // 003208 = Shenzhen Bay Port (inbound, first stop)
+  // Public Citybus stop IDs: 003261 = Fu Tai Estate; 003208 = Shenzhen Bay Port.
   const API = "https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/";
-  const BOARDS = [["out", "003261", "O"], ["in", "003208", "I"]];
+  const REFRESH_MS = 30000;
+  const STALE_MS = 90000;
+  const REQUEST_TIMEOUT_MS = 12000;
+  const BOARDS = [{ id: "out", stop: "003261", dir: "O" }, { id: "in", stop: "003208", dir: "I" }];
+  const hkClock = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Hong_Kong" });
+  const hkSeconds = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZone: "Asia/Hong_Kong" });
+  const hkDate = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Hong_Kong" });
+  const states = new Map(BOARDS.map(board => [board.id, { rows: null, lastSuccess: null, sourceTime: null, error: false }]));
+  const refreshButton = document.getElementById("refresh");
+  let refreshing = false;
 
-  async function load(boxId, stop, dir) {
-    const box = document.getElementById(boxId);
+  function element(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function normalizeRows(payload, dir, now = Date.now()) {
+    if (!payload || !Array.isArray(payload.data)) throw new Error("Invalid Citybus response");
+    return payload.data
+      .filter(row => row && row.dir === dir && typeof row.eta === "string" && row.eta.trim() !== "")
+      .map(row => ({ time: Date.parse(row.eta), note: typeof row.rmk_tc === "string" && row.rmk_tc ? row.rmk_tc : (typeof row.rmk_en === "string" ? row.rmk_en : "") }))
+      .filter(row => Number.isFinite(row.time) && row.time >= now - 60000)
+      .sort((a, b) => a.time - b.time);
+  }
+
+  function timeLabel(time, now) {
+    const date = hkDate.format(new Date(time));
+    const today = hkDate.format(new Date(now));
+    let prefix = "";
+    if (date !== today) {
+      if (date === hkDate.format(new Date(now + 86400000))) prefix = "次日 ";
+      else if (date === hkDate.format(new Date(now - 86400000))) prefix = "昨日 ";
+      else prefix = date + " ";
+    }
+    return prefix + hkClock.format(new Date(time));
+  }
+  function waitLabel(time, now) {
+    return time - now <= 30000 ? "即將到站" : Math.ceil((time - now) / 60000) + " 分鐘";
+  }
+
+  function isStale(state, now = Date.now()) {
+    return state.lastSuccess !== null && (state.error || now - state.lastSuccess > STALE_MS || (state.sourceTime !== null && now - state.sourceTime > STALE_MS));
+  }
+
+  function renderStatus() {
+    const failed = BOARDS.filter(board => states.get(board.id).error).length;
+    const stale = BOARDS.some(board => isStale(states.get(board.id)));
+    document.getElementById("data-status").dataset.kind = failed || stale ? "warning" : "ready";
+    document.getElementById("status-text").textContent = failed === 2 ? "無法更新，請稍後重試" : failed === 1 ? "部分資料未能更新" : stale ? "部分預測可能已過時" : "城巴資料已更新";
+  }
+
+  function renderBoard(board, now = Date.now()) {
+    const state = states.get(board.id);
+    const container = document.getElementById(board.id);
+    const stale = isStale(state, now);
+    const rows = (state.rows || []).filter(row => row.time >= now - 60000);
+    container.replaceChildren();
+    document.getElementById(board.id + "-board").dataset.state = state.error && !state.lastSuccess ? "error" : stale ? "stale" : "ready";
+    if (rows.length) {
+      const next = rows[0];
+      const nextBlock = element("div", "next-bus");
+      const left = element("div");
+      left.append(element("p", "next-label", stale ? "上次取得的預測" : "下一班"));
+      const wait = element("p", "wait");
+      const arriving = next.time - now <= 30000;
+      wait.append(element("span", arriving ? "arriving" : "number", arriving ? "即將到站" : String(Math.ceil((next.time - now) / 60000))));
+      if (!arriving) wait.append(element("span", "unit", "分鐘"));
+      left.append(wait);
+      const eta = element("div", "eta");
+      const clock = element("time", "number", timeLabel(next.time, now));
+      clock.dateTime = new Date(next.time).toISOString();
+      eta.append(clock, element("small", "", "預計到站"));
+      nextBlock.append(left, eta);
+      container.append(nextBlock);
+      if (next.note) container.append(element("p", "remark", next.note));
+      const later = element("ul", "later-list");
+      rows.slice(1).forEach((row, index) => {
+        const item = element("li");
+        const label = element("span", "later-label", index === 0 ? "再下一班" : "之後班次");
+        const value = element("span", "later-value number", waitLabel(row.time, now));
+        const clock = element("time", "later-clock number", timeLabel(row.time, now));
+        clock.dateTime = new Date(row.time).toISOString();
+        item.append(label, value, clock);
+        later.append(item);
+        if (row.note) {
+          const remark = element("li");
+          remark.append(element("span", "remark", row.note));
+          later.append(remark);
+        }
+      });
+      container.append(later);
+    } else {
+      const empty = element("div", "empty");
+      empty.append(element("strong", "", state.error ? "暫時無法更新" : "暫無到站預測"));
+      empty.append(element("p", "", state.error ? "請按「立即更新」重試，或稍後再查看。" : "城巴暫未提供有效到站預測。頁面會自動重新查詢。"));
+      container.append(empty);
+    }
+    document.getElementById(board.id + "-state").textContent = stale ? "資料可能已過時" : state.error ? "連接失敗，可重試" : rows.length ? "即時到站預測" : "等待班次資料";
+    document.getElementById(board.id + "-updated").textContent = state.lastSuccess ? "上次成功更新 " + hkSeconds.format(new Date(state.lastSuccess)) : "尚未取得資料";
+  }
+
+  async function loadBoard(board) {
+    const state = states.get(board.id);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-      const res = await fetch(API + stop + "/B3A");
-      const data = (await res.json()).data
-        .filter(b => b.dir === dir && b.eta)
-        .sort((a, b) => new Date(a.eta) - new Date(b.eta));
-      if (data.length === 0) {
-        box.innerHTML = '<div class="none">No bus in the next hour · 暫時沒有班次</div>';
-        return;
-      }
-      box.innerHTML = data.map(b => {
-        const t = new Date(b.eta);
-        const min = Math.max(0, Math.round((t - Date.now()) / 60000));
-        const clock = t.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit",
-                                                      timeZone: "Asia/Hong_Kong" });
-        const note = b.rmk_en ? " · " + b.rmk_en : "";
-        return `<div class="bus"><span class="min">${min === 0 ? "Arriving" : min + " min"}</span>` +
-               `<span class="clock">${clock}${note}</span></div>`;
-      }).join("");
-    } catch (e) {
-      box.innerHTML = '<div class="none">Cannot reach the data. Check the Wi-Fi.</div>';
+      const response = await fetch(API + board.stop + "/B3A", { signal: controller.signal, cache: "no-store" });
+      if (!response.ok) throw new Error("Citybus HTTP " + response.status);
+      const payload = await response.json();
+      const rows = normalizeRows(payload, board.dir);
+      const sourceTime = Date.parse(payload.generated_timestamp);
+      state.rows = rows;
+      state.lastSuccess = Date.now();
+      state.sourceTime = Number.isFinite(sourceTime) ? sourceTime : null;
+      state.error = false;
+    } catch (_) {
+      state.error = true;
+    } finally {
+      clearTimeout(timeout);
+      renderBoard(board);
     }
   }
 
-  function refresh() {
-    BOARDS.forEach(b => load(...b));
-    document.getElementById("updated").textContent =
-      new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Hong_Kong" });
+  async function refresh() {
+    if (refreshing) return;
+    refreshing = true;
+    refreshButton.disabled = true;
+    document.getElementById("refresh-label").textContent = "更新中…";
+    await Promise.all(BOARDS.map(loadBoard));
+    renderStatus();
+    document.getElementById("refresh-label").textContent = "立即更新";
+    refreshButton.disabled = false;
+    refreshing = false;
   }
+  refreshButton.addEventListener("click", refresh);
+  window.addEventListener("online", refresh);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
   refresh();
-  setInterval(refresh, 30000);
+  setInterval(refresh, REFRESH_MS);
+  // Recalculate minutes while keeping requests at the classroom's 30-second interval.
+  setInterval(() => {
+    BOARDS.forEach(board => { if (states.get(board.id).lastSuccess) renderBoard(board); });
+    if (!refreshing) renderStatus();
+  }, 15000);
 </script>
 </body>
 </html>
